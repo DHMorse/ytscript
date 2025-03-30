@@ -171,3 +171,5 @@ cython_debug/
 .pypirc
 
 *.mp3
+*.txt
+!requirements.txt
