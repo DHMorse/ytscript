@@ -10,5 +10,5 @@ DEFAULT_SETTINGS: dict[str, str] = {
     'summerizeationModelType': 'local',
     'huggingfaceToken': 'YOUR_HUGGINGFACE_TOKEN',
     'summerizeationModel': 'meta-llama/Llama-3.2-3B-Instruct',
-    'summerizeationPrompt': 'You are a helpful assistant that summerizes text.'
+    "summerizeationPrompt": "Summarize the following YouTube video script in a way that is clear, concise, and engaging. Capture the key themes, main points, and essential takeaways while removing filler words and redundancy. Ensure the summary preserves the intent, tone, and emotional impact of the original content. If the script conveys a story, lesson, or argument, present it in a structured and digestible way. The summary should be direct, informative, and maintain the energy of the original message."
 }
