@@ -1,1 +1,0 @@
-for the best install put the executable in your path and the settings.json file in the same directory as the executable.

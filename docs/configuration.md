@@ -1,16 +1,19 @@
-# Configuration
+# Configuration Guide
 
-Configuration can be set in `ytscript/settings.json`:
+## Settings File Location
+The configuration file should be placed at `ytscript/settings.json`.
+
+## Configuration Options
 
 ```json
 {
-    "outputFilepath": "", // The path to save the output file this can be any path you want
-    "model": "", // The model to use for transcription (tiny, base, small, medium, large)
-    "keepMp3": "", // Whether to keep the MP3 file after transcription (true, false)
-    "summerize": "", // Whether to summarize the transcription (true, false)
-    "summerizeationModelType": "", // The type of summarization model to use (local, huggingface)
-    "huggingfaceToken": "", // The token for Hugging Face model access
-    "summerizeationModel": "", // The model to use for summarization
-    "summerizeationPrompt": "" // The prompt to guide the summarization
+    "outputFilepath": "",      // Directory path for output files (use '/' for Unix or '\\' for Windows)
+    "model": "",              // Whisper model size: "tiny", "base", "small", "medium", "large"
+    "keepMp3": false,         // Set to true to retain the MP3 file after transcription
+    "summarize": false,       // Set to true to enable transcription summarization
+    "summarizationModelType": "", // Summarization model type: "local" or "huggingface"
+    "huggingfaceToken": "",   // Your Hugging Face API token (required for huggingface models)
+    "summarizationModel": "", // Name/path of the summarization model
+    "summarizationPrompt": "" // Custom prompt template for summarization
 }
 ```

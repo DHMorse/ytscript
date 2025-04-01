@@ -1,10 +1,4 @@
-check all our error messages / warnings
-
-proper handling of vidoe title with specal charecters
-
-add better checking for models local and huggingface
-
-write tests
+allow the settings.json to be in ~/.config/ytscript
 
 build all the exes
 linux x86

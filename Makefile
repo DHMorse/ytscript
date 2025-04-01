@@ -10,7 +10,7 @@ run:
 	dist/ytscript
 
 test:
-	python -m pytest tests/
+	python -m pytest tests/ -v
 
 debug:
 	python -m nuitka --onefile --standalone --remove-output \
@@ -25,6 +25,7 @@ clean:
 	rm -rf dist build build.log
 	rm -rf *.txt
 	rm -rf *.mp3
+	rm -rf output/*
 	uv pip freeze > requirements.txt
 
 rebuild: 
