@@ -1,5 +1,12 @@
 # YTScript 🎥 → 📝
 
+[![Python](https://img.shields.io/badge/Python_3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![uv](https://img.shields.io/badge/uv-FFE873?style=flat&logo=python&logoColor=black)](https://github.com/astral-sh/uv)
+[![yt-dlp](https://img.shields.io/badge/yt--dlp-FF0000?style=flat&logo=youtube&logoColor=white)](https://github.com/yt-dlp/yt-dlp)
+[![OpenAI Whisper](https://img.shields.io/badge/OpenAI_Whisper-white?style=flat&logo=openai&logoColor=black)](https://github.com/openai/whisper)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=flat&logo=huggingface&logoColor=black)](https://huggingface.co/)
+
+
 A powerful Python tool that transcribes and summarizes YouTube videos using OpenAI's Whisper for transcription and state-of-the-art language models for summarization.
 
 ## Features
@@ -74,12 +81,6 @@ python -m pytest tests/test_transcription.py -v
 ## License
 
 This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [OpenAI Whisper](https://github.com/openai/whisper) for the transcription model
-- [Hugging Face](https://huggingface.co/) for providing access to state-of-the-art language models
-- All our [contributors](https://github.com/DHMorse/ytscript/graphs/contributors)
 
 ## Support
 
