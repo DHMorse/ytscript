@@ -173,3 +173,4 @@ cython_debug/
 *.mp3
 *.txt
 !requirements.txt
+todo.md
