@@ -4,7 +4,7 @@
 [![uv](https://img.shields.io/badge/uv-FFE873?style=flat&logo=python&logoColor=black)](https://github.com/astral-sh/uv)
 [![yt-dlp](https://img.shields.io/badge/yt--dlp-FF0000?style=flat&logo=youtube&logoColor=white)](https://github.com/yt-dlp/yt-dlp)
 [![OpenAI Whisper](https://img.shields.io/badge/OpenAI_Whisper-white?style=flat&logo=openai&logoColor=black)](https://github.com/openai/whisper)
-[![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=flat&logo=huggingface&logoColor=black)](https://huggingface.co/)
+[![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=flat&logo=huggingface&logoColor=FFD21E)](https://huggingface.co/)
 
 
 A powerful Python tool that transcribes and summarizes YouTube videos using OpenAI's Whisper for transcription and state-of-the-art language models for summarization.
