@@ -1,6 +1,10 @@
-add better warnings / info
+check all our error messages / warnings
 
-feat add: allow user to run summerization model locally
+proper handling of vidoe title with specal charecters
+
+add better checking for models local and huggingface
+
+write tests
 
 build all the exes
 linux x86

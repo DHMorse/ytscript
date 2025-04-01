@@ -3,7 +3,8 @@ libraryImportStartTime = time.time()
 
 from transformers.generation.streamers import TextIteratorStreamer # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer # type: ignore
-from huggingface_hub import login as huggingfaceLogin # type: ignore
+from huggingface_hub import login as huggingfaceLogin 
+from huggingface_hub import InferenceClient
 from yt_dlp import YoutubeDL # type: ignore
 import whisper # type: ignore
 import argparse
@@ -13,34 +14,37 @@ import os
 import torch
 from tqdm import tqdm
 from threading import Thread
+from rich.panel import Panel
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+from rich.live import Live
 
-from helpers import settingsJsonToDict, checkForTrueOrFalse, defineArguments
+from ytscript.helpers import ( 
+    richWarning,
+    settingsJsonToDict, 
+    checkForTrueOrFalse, 
+    defineArguments, 
+    getVideoLength, 
+    getVideoFilename, 
+    getTimeString, 
+    validateHuggingfaceToken, 
+    validateHuggingfaceModel
+)
+
+console = Console()
+
+warnings.formatwarning = richWarning
 
 libraryImportEndTime = time.time()
-print(f"Library import time: {round(libraryImportEndTime - libraryImportStartTime, 2)} seconds")
+console.print(f"Library import time: [blue]{round(libraryImportEndTime - libraryImportStartTime, 2)} seconds[/]")
 
-def getVideoFilename(url: str) -> str:
-    """
-    Extracts the video filename from a YouTube URL.
-
-    Args:
-        url (str): The URL of the YouTube video.
-    """
-    with YoutubeDL() as ytDL:
-        infoDict: dict = ytDL.extract_info(url, download=False)
-        videoTitle: str = infoDict.get('title', '')
-        return videoTitle
-    
 def downloadVideoAudio(url: str, filepath: str) -> None:
     """
-    Downloads the audio track from a YouTube video URL and returns the base filename.
+    Downloads the audio track from a YouTube video URL
 
     Args:
         url (str): The URL of the YouTube video.
         filepath (str): The directory path where the audio file should be saved.
-
-    Returns:
-        str: The base filename (without extension) of the downloaded audio file.
     """
     ytDLoptions: dict[str, str | list[dict[str, str]]] = {
         'format': 'bestaudio/best',
@@ -73,7 +77,7 @@ def transcribeAudio(filepath: str, modelSize: str) -> str:
     #warnings.filterwarnings("ignore", category=FutureWarning)
     
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    
+
     if device == "cuda":
         torch.cuda.empty_cache()
 
@@ -81,10 +85,12 @@ def transcribeAudio(filepath: str, modelSize: str) -> str:
         warnings.warn("Using CPU for transcription, because CUDA is not available")
     
 
-    print("Loading Whisper model...")
+    panel = Panel("Loading Whisper model...", title="[bold blue]Information[/]")
+    console.print(panel)
     model: whisper.Whisper = whisper.load_model(modelSize, device=device)
         
-    print("Transcribing audio... (This may take a while)")
+    panel = Panel("Transcribing audio... (This may take a while)", title="[bold blue]Information[/]")
+    console.print(panel)
     results: whisper.transcribe.Result = whisper.transcribe(model, filepath)
 
     return results['text']
@@ -111,8 +117,11 @@ def summerizeTextLocal(text: str, modelName: str, prompt: str) -> str:
     
     if device == "cpu":
         warnings.warn("Using CPU for summarization, which may be slow. CUDA is not available.")
+        panel = Panel("Using CPU for summarization, which may be slow. CUDA is not available.", title="[bold red]Pretty Warning[/]")
+        console.print(panel)
     
-    print(f"Loading model {modelName}...")
+    panel = Panel(f"Loading model {modelName}...", title="[bold blue]Information[/]")
+    console.print(panel)
     
     # Load model and tokenizer
     model = AutoModelForCausalLM.from_pretrained(
@@ -162,22 +171,32 @@ def summerizeTextLocal(text: str, modelName: str, prompt: str) -> str:
         )
     )
     
-    print("Generating summary...")
-    generationThread.start()
-    
-    # Collect the generated text and update progress bar
     generatedText: str = ""
-    progressBar = tqdm(total=maxTokens, desc="Summarizing")
     
-    for textChunk in streamer:
-        generatedText += textChunk
-        # Update progress based on tokens generated so far
-        progressBar.update(1)
+    # Create a Live display within a panel
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+    )
     
-    # Ensure progress bar reaches 100% when done
-    progressBar.n = maxTokens
-    progressBar.refresh()
-    progressBar.close()
+    panel = Panel(progress, title="[bold blue]Information[/]", border_style="white")
+    
+    with Live(panel, refresh_per_second=10, console=console):
+        summaryTask = progress.add_task("[cyan]Generating summary...", total=maxTokens)
+        
+        # Start the generation
+        generationThread.start()
+        
+        # Update progress as we receive chunks
+        for textChunk in streamer:
+            generatedText += textChunk
+            progress.update(summaryTask, advance=1)
+            
+        # Ensure the progress reaches 100%
+        progress.update(summaryTask, completed=maxTokens)
     
     # Clean up any artifacts in the output
     cleanedText: str = generatedText.strip()
@@ -186,8 +205,7 @@ def summerizeTextLocal(text: str, modelName: str, prompt: str) -> str:
 
 def summerizeTextHuggingface(text: str, model: str, prompt: str, token: str) -> str:
     """
-    Placeholder for summarizing text using a Hugging Face model via API or inference endpoint.
-    (Currently not implemented)
+    Summarizes text using a Hugging Face model via API or inference endpoint.
 
     Args:
         text (str): The text to summarize.
@@ -196,90 +214,188 @@ def summerizeTextHuggingface(text: str, model: str, prompt: str, token: str) -> 
         token (str): Hugging Face API token.
 
     Returns:
-        str: An empty string (as it's not implemented).
+        str: The summarized text.
+
+    Raises:
+        SystemExit: If there's a payment required error or other critical Hugging Face API errors
     """
-    return ''
+    maxTokens: int = 4096
+    
+    panel = Panel(f"Using Hugging Face model {model} for summarization...", title="[bold blue]Information[/]")
+    console.print(panel)
+    
+    # Authenticate with Hugging Face
+    huggingfaceLogin(token)
+    
+    # Set up the inference client
+    inferenceClient = InferenceClient(model=model, token=token)
+
+    # Generate the summary
+    try:
+        summary = inferenceClient.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text}
+            ],
+            max_tokens=maxTokens,
+            temperature=0.5,
+            top_p=0.95,
+            stream=True
+        )
+    except Exception as e:
+        errorMessage: str = str(e)
+        if "402" in errorMessage and "Payment Required" in errorMessage:
+            panel = Panel(
+                "[red]You have exceeded your monthly included credits for Inference Providers.[/]\n"
+                "[yellow]To resolve this, you can either:[/]\n"
+                "1. Subscribe to Hugging Face Pro for more credits\n"
+                "2. Use a different model\n"
+                "3. Switch to local model inference",
+                title="[bold red]Error: Payment Required[/]"
+            )
+        else:
+            panel = Panel(
+                f"[red]An error occurred while generating the summary:[/]\n{errorMessage}",
+                title="[bold red]Error: Hugging Face API[/]"
+            )
+        console.print(panel)
+        sys.exit(1)
+
+    # Create a Live display within a panel
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+    )
+    
+    panel = Panel(progress, title="[bold blue]Information[/]", border_style="white")
+    
+    generatedText: str = ""
+    
+    with Live(panel, refresh_per_second=10, console=console):
+        summaryTask = progress.add_task("[cyan]Generating summary...", total=maxTokens)
+        
+        for textChunk in summary:
+            generatedText += textChunk.choices[0].delta.content
+            progress.update(summaryTask, advance=1)
+            
+        # Ensure the progress reaches 100%
+        progress.update(summaryTask, completed=maxTokens)
+    
+    # Clean up any artifacts in the output
+    cleanedText: str = generatedText.strip()
+    
+    return cleanedText.strip()
+
 
 def main() -> None:
     if len(sys.argv) <= 1:
-        print("Basic Usage: python main.py <video_url>")
+        panel = Panel("Basic Usage: python main.py <video_url>", title="[bold red]Error[/]")
+        console.print(panel)
         sys.exit(1)
 
-    settingsJson: dict[str, str] = settingsJsonToDict()
+    startTime: float = time.time()
 
+    settingsJson: dict[str, str] = settingsJsonToDict()
     args: argparse.Namespace = defineArguments()
 
     videoUrl: str = args.videoUrl
+    videoLength: int = getVideoLength(videoUrl)
 
+    # Initialize variables with defaults to avoid scope issues
+    filepath: str = settingsJson['outputFilepath']
+    modelSize: str = settingsJson['model']
+    keepMp3: str = settingsJson['keepMp3']
+    summerize: str = settingsJson['summerize']
+    summerizeationModelType: str = settingsJson['summerizeationModelType']
+    summerizeationModel: str = settingsJson['summerizeationModel']
+    summerizeationPrompt: str = settingsJson['summerizeationPrompt']
+    huggingfaceToken: str = settingsJson['huggingfaceToken']
+
+
+
+    # Handle filepath argument
     filepathArgument: str | None = args.filepath
     if filepathArgument is not None and not os.path.exists(filepathArgument):
         raise FileNotFoundError(f"The filepath {filepathArgument} does not exist")
-    elif filepathArgument is None:
-        filepath: str = settingsJson['outputFilepath']
+    elif filepathArgument is not None:
+        filepath = filepathArgument
 
+
+
+    # Handle modelSize argument
     modelSizeArgument: str | None = args.model
     if modelSizeArgument is not None and modelSizeArgument not in ["tiny", "base", "small", "medium", "large"]:
         raise ValueError(f"The model size {modelSizeArgument} is not valid. Please use one of the following: tiny, base, small, medium, large")
-    elif modelSizeArgument is None:
-        modelSize: str = settingsJson['model']
+    elif modelSizeArgument is not None:
+        modelSize = modelSizeArgument
 
+
+
+    # Handle keepMp3 argument
     keepMp3Argument: str | None = args.keepMp3
     if keepMp3Argument is not None and checkForTrueOrFalse(keepMp3Argument) is None:
         raise ValueError(f"The keepMp3 argument {keepMp3Argument} is not valid. Please use one of the following: true, false")
-    elif keepMp3Argument is None:
-        keepMp3: str = settingsJson['keepMp3']
-
+    elif keepMp3Argument is not None:
+        keepMp3 = keepMp3Argument
     shouldKeepMp3: bool | None = checkForTrueOrFalse(keepMp3)
 
+
+
+    # Handle summerize argument
     summerizeArgument: str | None = args.summerize
     if summerizeArgument is not None and checkForTrueOrFalse(summerizeArgument) is None:
         raise ValueError(f"The summerize argument {summerizeArgument} is not valid. Please use one of the following: true, false")
-    elif summerizeArgument is None:
-        summerize: str = settingsJson['summerize']
-
+    elif summerizeArgument is not None:
+        summerize = summerizeArgument
     shouldSummerize: bool | None = checkForTrueOrFalse(summerize)
 
+
+
     if shouldSummerize:
+        # Handle summerizeationModelType argument
         summerizeationModelTypeArgument: str | None = args.summerizeationModelType
         if summerizeationModelTypeArgument is not None and summerizeationModelTypeArgument not in ['local', 'huggingface']:
             raise ValueError(f"The summerizeationModelType argument {summerizeationModelTypeArgument} is not valid. Please use one of the following: local, huggingface")
-        elif summerizeationModelTypeArgument is None:
-            summerizeationModelType: str = settingsJson['summerizeationModelType']
+        elif summerizeationModelTypeArgument is not None:
+            summerizeationModelType = summerizeationModelTypeArgument
 
-        # ADD PROPER VALIDATION FOR HUGGINGFACE TOKEN
-        # ADD PROPER VALIDATION FOR HUGGINGFACE TOKEN
-        # ADD PROPER VALIDATION FOR HUGGINGFACE TOKEN
-        huggingfaceTokenArgument: str | None = args.huggingfaceToken
-        if huggingfaceTokenArgument is not None:
-            try:
-                huggingfaceLogin(huggingfaceTokenArgument)
-            except Exception as e:
-                raise ValueError(f"The huggingfaceToken argument {huggingfaceTokenArgument} is not valid. Please use a valid huggingface token.")
-        elif huggingfaceTokenArgument is None:
-            huggingfaceToken: str = settingsJson['huggingfaceToken']
 
+        # Handle summerizeationModel argument
         summerizeationModelArgument: str | None = args.summerizeationModel
         if summerizeationModelArgument is not None:
-            if summerizeationModelType == 'huggingface':
-                try:
-                    huggingfaceLogin(huggingfaceToken)
-                except Exception as e:
-                    raise ValueError(f"The summerizeationModel argument {summerizeationModelArgument} is not valid. Please use a valid huggingface model.")
-            elif summerizeationModelType == 'local':
-                if not os.path.exists(summerizeationModelArgument):
-                    pass
-                # to do: add validation for local model
-        else:
-            summerizeationModel: str = settingsJson['summerizeationModel']
-        
+            summerizeationModel = summerizeationModelArgument
+
+
+        # Handle Model Validation
+        if summerizeationModelType == 'local':
+            # there is currently no validation for the local model
+            pass
+
+        elif summerizeationModelType == 'huggingface':
+            # Validate hugging face token
+            if not validateHuggingfaceToken(huggingfaceToken):
+                raise ValueError(f"The huggingfaceToken argument {huggingfaceToken} is not valid. Please check your token and try again.")
+
+
+            # Validate hugging face model
+            if not validateHuggingfaceModel(summerizeationModel, huggingfaceToken):
+                raise ValueError(f"The summerizeationModel argument {summerizeationModel} is not valid. Please check your model and try again.")
+
+
+
+        # Handle summerizeationPrompt argument
         summerizeationPromptArgument: str | None = args.summerizeationPrompt
         if summerizeationPromptArgument is not None:
-            summerizeationPrompt: str = summerizeationPromptArgument
-        elif summerizeationPromptArgument is None:
-            summerizeationPrompt = settingsJson['summerizeationPrompt']
+            summerizeationPrompt = summerizeationPromptArgument
+
 
     videoTitle: str = getVideoFilename(videoUrl)
-    print(f"Video title: `{videoTitle}`")
+    panel = Panel(f"Video title: `{videoTitle}`", title="[bold blue]Information[/]")
+    console.print(panel)
     videoFilepath: str = filepath + f'{videoTitle}.mp3'
     transcribedTextFilepath: str = filepath + f'{videoTitle}.txt'
     summerizedTextFilepath: str = filepath + f'summerized_{videoTitle}.txt'
@@ -294,7 +410,8 @@ def main() -> None:
             file.write(transcribedText)
 
     else:
-        print(f"Transcribed text already exists for `{transcribedTextFilepath}`. Reading from file...")
+        panel = Panel(f"Transcribed text already exists for `{transcribedTextFilepath}`. Reading from file...", title="[bold blue]Information[/]")
+        console.print(panel)
         with open(transcribedTextFilepath, 'r') as file:
             transcribedText = file.read()
 
@@ -310,6 +427,22 @@ def main() -> None:
 
         with open(summerizedTextFilepath, 'w') as file:
             file.write(summerizedText)
+
+    endTime: float = time.time()
+    timeSpent: float = endTime - startTime
+    timeSaved: float = videoLength - timeSpent
+
+
+    if shouldSummerize and timeSaved < videoLength:
+        panel = Panel(
+            f"Video length: [green]{getTimeString(videoLength)}[/]\n"
+            f"Time spent: [yellow]{getTimeString(timeSpent)}[/]\n"
+            f"Time saved: [cyan]{getTimeString(timeSaved)}[/]",
+            title="[bold blue]Information[/]"
+        )
+        console.print(panel)
+
+    exit(0)
 
 if __name__ == "__main__":
     main()

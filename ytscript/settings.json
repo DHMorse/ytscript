@@ -2,7 +2,7 @@
     "outputFilepath": "./",
     "model": "tiny",
     "keepMp3": "false",
-    "summerize": "true",
+    "summerize": "false",
     "summerizeationModelType": "local",
     "huggingfaceToken": "YOUR_HUGGINGFACE_TOKEN",
     "summerizeationModel": "meta-llama/Llama-3.2-3B-Instruct",

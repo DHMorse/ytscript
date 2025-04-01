@@ -1,0 +1,10 @@
+repos:
+-   repo: local
+    hooks:
+    -   id: check-hf-token
+        name: Check for Hugging Face Token
+        entry: python scripts/checkHfToken.py
+        language: python
+        types: [json]
+        files: ^ytscript/settings\.json$
+        pass_filenames: false

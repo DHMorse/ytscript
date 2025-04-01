@@ -4,16 +4,10 @@ build:
 		--nofollow-import-to=numba,triton \
 		--module-parameter=torch-disable-jit=yes \
 		--include-distribution-metadata=tiktoken --lto=yes \
-		--nofollow-import-to=yt_dlp,transformers,huggingface_hub \
 		ytscript/main.py
 
 run:
-	if [ -f dist/ytscript ]; then \
-		dist/ytscript; \
-	else \
-		source .venv/bin/activate; \
-		python ytscript/main.py; \
-	fi
+	dist/ytscript
 
 test:
 	python -m pytest tests/
@@ -30,6 +24,7 @@ debug:
 clean:
 	rm -rf dist build build.log
 	rm -rf *.txt
+	rm -rf *.mp3
 	uv pip freeze > requirements.txt
 
 rebuild: 
